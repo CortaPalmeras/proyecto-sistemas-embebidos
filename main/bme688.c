@@ -40,6 +40,40 @@ uint16_t val0[6];
 
 float task_delay_ms = 1000;
 
+
+/*
+Esto se copio y pego del archivo main del proyecto comunicacion serial.  Permite configurar la conexion entre el computad
+r y controlador para poder envi8ar*/
+static int uart1_printf(const char *str, va_list ap) {
+    char *buf;
+    vasprintf(&buf, str, ap);
+    uart_write_bytes(UART_NUM_1, buf, strlen(buf));
+    free(buf);
+    return 0;
+}
+
+// Setup of UART connections 0 and 1, and try to redirect logs to UART1 if asked
+static void uart_setup() {
+    uart_config_t uart_config = {
+        .baud_rate = 115200,
+        .data_bits = UART_DATA_8_BITS,
+        .parity = UART_PARITY_DISABLE,
+        .stop_bits = UART_STOP_BITS_1,
+        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+    };
+
+    uart_param_config(UART_NUM_0, &uart_config);
+    uart_param_config(UART_NUM_1, &uart_config);
+    uart_driver_install(UART_NUM_0, BUF_SIZE * 2, 0, 0, NULL, 0);
+    uart_driver_install(UART_NUM_1, BUF_SIZE * 2, 0, 0, NULL, 0);
+
+    // Redirect ESP log to UART1
+    if (REDIRECT_LOGS) {
+        esp_log_set_vprintf(uart1_printf);
+    }
+}
+
+
 esp_err_t sensor_init(void) {
     int i2c_master_port = I2C_NUM_0;
     i2c_config_t conf;
@@ -318,6 +352,11 @@ typedef struct temp {
     int calc, t_fine;
 } temp_t;
 
+typedef struct datos{
+    
+    int temp, press;
+} datos;
+
 // función del template modificada para retornar el t_fine
 temp_t bme_temp_celsius(uint32_t temp_adc) {
     // Datasheet[23]
@@ -387,7 +426,7 @@ int bme_read_temp(void) {
     return temp.t_fine;
 }
 
-// retorna la presión en pascal
+// retorna 
 int bme_pres_pascal(uint32_t press_adc, int t_fine) {
 
     uint8_t addr_par_p1_lsb = 0X8E, addr_par_p1_msb = 0x8F;
@@ -485,11 +524,17 @@ void bme_read_press(int t_fine){
     printf("Pressure: %lu\t\t", press / 100);
 }
 
+char dataResponse[4];
 void bme_read_data(void) {
     for (;;) {
+        int rLen = serial_read(dataResponse, 4);
+        if (strcmp(dataResponse, "END") == 0)
+            {
+                break;
+            }
         int t_fine = bme_read_temp();
         bme_read_press(t_fine);
-        printf("\n");
+        printf("\r");
     }
 }
 
