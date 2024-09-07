@@ -389,6 +389,8 @@ int bme_read_temp(void) {
 
 // retorna la presión en pascal
 int bme_pres_pascal(uint32_t press_adc, int t_fine) {
+    // Datasheet[23:41]
+    // https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme688-ds000.pdf#page=24
 
     uint8_t addr_par_p1_lsb = 0X8E, addr_par_p1_msb = 0x8F;
     uint8_t addr_par_p2_lsb = 0x90, addr_par_p2_msb = 0x91;
@@ -469,20 +471,22 @@ int bme_pres_pascal(uint32_t press_adc, int t_fine) {
     return press_comp;
 }
 
+// calcula e imprime el la presion
 void bme_read_press(int t_fine){
-    // Datasheet[23:41]
-    // https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme688-ds000.pdf#page=23
-    uint32_t press;
+    uint8_t tmp;
     uint8_t forced_press_addr[] = {0x21, 0x20, 0x1F};
-    uint32_t press_adc = 0;
-    bme_i2c_read(I2C_NUM_0, &forced_press_addr[0], &press, 1);
-    press_adc = press_adc | press << 12;
-    bme_i2c_read(I2C_NUM_0, &forced_press_addr[1], &press, 1);
-    press_adc = press_adc | press << 4;
-    bme_i2c_read(I2C_NUM_0, &forced_press_addr[2], &press, 1);
 
-    press = bme_pres_pascal(press_adc,t_fine);
-    printf("Pressure: %lu\t\t", press / 100);
+    uint32_t press_adc = 0;
+
+    bme_i2c_read(I2C_NUM_0, &forced_press_addr[0], &tmp, 1);
+    press_adc = press_adc | tmp << 12;
+    bme_i2c_read(I2C_NUM_0, &forced_press_addr[1], &tmp, 1);
+    press_adc = press_adc | tmp << 4;
+    bme_i2c_read(I2C_NUM_0, &forced_press_addr[2], &tmp, 1);
+
+    uint32_t press = bme_pres_pascal(press_adc, t_fine);
+
+    printf("Presion: %f\t\t", (float)press / 100);
 }
 
 void bme_read_data(void) {
