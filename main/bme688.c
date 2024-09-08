@@ -353,17 +353,12 @@ void bme_get_mode(void) {
     printf("Valor de BME MODE: %2X \n\n", tmp);
 }
 
-// estructura definida para poder retornar el calculo de temperatura y t_fine
-typedef struct temp {
-    int calc, t_fine;
-} temp_t;
-
 typedef struct datos{
     int temp, press;
 } datos;
 
-// función del template modificada para retornar el t_fine
-temp_t bme_temp_celsius(uint32_t temp_adc) {
+// realiza el calculo de la temperatura y setea t_fine
+double bme_temp_celsius(uint32_t temp_adc, uint32_t* t_fine) {
     // Datasheet[23]
     // https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme688-ds000.pdf#page=23
 
@@ -389,24 +384,20 @@ temp_t bme_temp_celsius(uint32_t temp_adc) {
     int64_t var1;
     int64_t var2;
     int64_t var3;
-    int t_fine;
-    int calc_temp;
+    int32_t calc_temp;
 
     var1 = ((int32_t)temp_adc >> 3) - ((int32_t)par_t1 << 1);
     var2 = (var1 * (int32_t)par_t2) >> 11;
     var3 = ((var1 >> 1) * (var1 >> 1)) >> 12;
-    var3 = ((var3) * ((int32_t)par_t3 << 4)) >> 14;
-    t_fine = (int32_t)(var2 + var3);
-    calc_temp = (((t_fine * 5) + 128) >> 8);
+    var3 = (var3 * ((int32_t)par_t3 << 4)) >> 14;
+    *t_fine = (int32_t) var2 + var3;
+    calc_temp = (((*t_fine) * 5) + 128) >> 8;
 
-    temp_t ret = {calc_temp, t_fine};
-    
-    return ret;
+    return (double)calc_temp / 100.0;
 }
 
-// calcula e imprimee la temperatura y luego retorna el t_fine
-temp_t bme_read_temp(void) { 
-    // Datasheet[23:41]
+// prepara las variables para el calculo de la temperatura
+double bme_read_temp(uint32_t* t_fine) { 
     // https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme688-ds000.pdf#page=23
     uint8_t tmp;
 
@@ -415,9 +406,8 @@ temp_t bme_read_temp(void) {
 
     uint32_t temp_adc = 0;
     bme_forced_mode();
-    // Datasheet[41]
-    // https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme688-ds000.pdf#page=41
     
+    // https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme688-ds000.pdf#page=41
     bme_i2c_read(I2C_NUM_0, &forced_temp_addr[0], &tmp, 1);
     temp_adc = temp_adc | tmp << 12;
     bme_i2c_read(I2C_NUM_0, &forced_temp_addr[1], &tmp, 1);
@@ -425,14 +415,12 @@ temp_t bme_read_temp(void) {
     bme_i2c_read(I2C_NUM_0, &forced_temp_addr[2], &tmp, 1);
     temp_adc = temp_adc | (tmp & 0xf0) >> 4;
 
-    temp_t temp = bme_temp_celsius(temp_adc);
-    printf("Temperatura: %f\t\t", (float)temp.calc / 100);
-
-    return temp;
+    return bme_temp_celsius(temp_adc, t_fine);
 }
 
-// retorna 
-int bme_pres_pascal(uint32_t press_adc, int t_fine) {
+// retorna la presion atmosferica en pascal
+uint32_t bme_pres_pascal(uint32_t press_adc, int t_fine) {
+    // https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme688-ds000.pdf#page=24
 
     uint8_t addr_par_p1_lsb = 0X8E, addr_par_p1_msb = 0x8F;
     uint8_t addr_par_p2_lsb = 0x90, addr_par_p2_msb = 0x91;
@@ -495,7 +483,7 @@ int bme_pres_pascal(uint32_t press_adc, int t_fine) {
         ((int32_t)par_p3 << 5)) >> 3) + (((int32_t)par_p2 * var1) >> 1);
     var1 = var1 >> 18;
     var1 = ((32768 + var1) * (int32_t)par_p1) >> 15;
-    int press_comp = 1048576 - press_adc;
+    uint32_t press_comp = 1048576 - press_adc;
     press_comp = (uint32_t)((press_comp - (var2 >> 12)) * ((uint32_t)3125));
     if (press_comp >= (1 << 30))
         press_comp = ((press_comp / (uint32_t)var1) << 1);
@@ -513,28 +501,38 @@ int bme_pres_pascal(uint32_t press_adc, int t_fine) {
     return press_comp;
 }
 
-void bme_read_press(int t_fine){
-    // Datasheet[23:41]
-    // https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme688-ds000.pdf#page=23
-    uint32_t press;
-    uint8_t forced_press_addr[] = {0x21, 0x20, 0x1F};
-    uint32_t press_adc = 0;
-    bme_i2c_read(I2C_NUM_0, &forced_press_addr[0], &press, 1);
-    press_adc = press_adc | press << 12;
-    bme_i2c_read(I2C_NUM_0, &forced_press_addr[1], &press, 1);
-    press_adc = press_adc | press << 4;
-    bme_i2c_read(I2C_NUM_0, &forced_press_addr[2], &press, 1);
+// calcula e imprime el la presion
+uint32_t bme_read_pres(int t_fine){
+    // https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme688-ds000.pdf#page=24
+    uint8_t tmp;
+    uint8_t forced_pres_addr[] = {0x1F, 0x20, 0x21};
 
-    press = bme_pres_pascal(press_adc,t_fine);
-    printf("Pressure: %lu\t\t", (float) press / 100);
+    uint32_t pres_adc = 0;
+    bme_forced_mode();
+
+    // https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme688-ds000.pdf#page=41
+    bme_i2c_read(I2C_NUM_0, &forced_pres_addr[0], &tmp, 1);
+    pres_adc = pres_adc | tmp << 12;
+    bme_i2c_read(I2C_NUM_0, &forced_pres_addr[1], &tmp, 1);
+    pres_adc = pres_adc | tmp << 4;
+    bme_i2c_read(I2C_NUM_0, &forced_pres_addr[2], &tmp, 1);
+    pres_adc = pres_adc | (tmp & 0xf0) >> 4;
+
+    return bme_pres_pascal(pres_adc, t_fine);
 }
 
-char dataResponse[4];
-int n=0;
 void bme_read_data(void) {
     for (;;) {
-        temp_t par = bme_read_temp();
-        int presion = bme_read_press(par.t_fine);
+        uint32_t t_fine;
+        double temp = bme_read_temp(&t_fine);
+        uint32_t presion = bme_read_pres(t_fine);
+
+        printf("Temperatura: %f\t\tPresion: %lu\t\t\r", temp, presion);
+
+        /*
+        Comenté esto por mientras para poder compilar el codigo
+        char dataResponse[4];
+        int n=0;
 
         float a_temp = a_temp + par.calc * par.calc;
         float a_pres = a_pres + presion * presion;
@@ -562,7 +560,8 @@ void bme_read_data(void) {
             uart_write_bytes(UART_NUM, dataToSend, sizeof(int)*2);
         }
 
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        vTsaskDelay(pdMS_TO_TICKS(1000));
+        */
     }
 }
 
