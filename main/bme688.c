@@ -21,6 +21,7 @@
 #define UART_NUM UART_NUM_0  // UART port number
 #define BAUD_RATE 115200     // Baud rate
 #define M_PI 3.14159265358979323846
+#define REDIRECT_LOGS 1 
 
 #define I2C_MASTER_SCL_IO GPIO_NUM_22  // GPIO pin
 #define I2C_MASTER_SDA_IO GPIO_NUM_21  // GPIO pin
@@ -73,6 +74,11 @@ static void uart_setup() {
     }
 }
 
+// Read UART_num for input with timeout of 1 sec
+int serial_read(char *buffer, int size){
+    int len = uart_read_bytes(UART_NUM, (uint8_t*)buffer, size, pdMS_TO_TICKS(1000));
+    return len;
+}
 
 esp_err_t sensor_init(void) {
     int i2c_master_port = I2C_NUM_0;
@@ -353,7 +359,6 @@ typedef struct temp {
 } temp_t;
 
 typedef struct datos{
-    
     int temp, press;
 } datos;
 
@@ -400,7 +405,7 @@ temp_t bme_temp_celsius(uint32_t temp_adc) {
 }
 
 // calcula e imprimee la temperatura y luego retorna el t_fine
-int bme_read_temp(void) { 
+temp_t bme_read_temp(void) { 
     // Datasheet[23:41]
     // https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme688-ds000.pdf#page=23
     uint8_t tmp;
@@ -423,7 +428,7 @@ int bme_read_temp(void) {
     temp_t temp = bme_temp_celsius(temp_adc);
     printf("Temperatura: %f\t\t", (float)temp.calc / 100);
 
-    return temp.t_fine;
+    return temp;
 }
 
 // retorna 
@@ -521,20 +526,43 @@ void bme_read_press(int t_fine){
     bme_i2c_read(I2C_NUM_0, &forced_press_addr[2], &press, 1);
 
     press = bme_pres_pascal(press_adc,t_fine);
-    printf("Pressure: %lu\t\t", press / 100);
+    printf("Pressure: %lu\t\t", (float) press / 100);
 }
 
 char dataResponse[4];
+int n=0;
 void bme_read_data(void) {
     for (;;) {
+        temp_t par = bme_read_temp();
+        int presion = bme_read_press(par.t_fine);
+
+        float a_temp = a_temp + par.calc * par.calc;
+        float a_pres = a_pres + presion * presion;
+
+        n++;
         int rLen = serial_read(dataResponse, 4);
-        if (strcmp(dataResponse, "END") == 0)
+
+        if (rLen >0) {
+            if (strcmp(dataResponse, "END") == 0)
             {
+                float data[2];
+                data[0]=sqrt(a_temp/n);
+                data[1]=sqrt(a_pres/n);
+                const char* dataToSend = (const char*) data;
+                uart_write_bytes(UART_NUM, dataToSend, sizeof(float)*2);
                 break;
             }
-        int t_fine = bme_read_temp();
-        bme_read_press(t_fine);
-        printf("\r");
+        }
+
+        else {
+            int data[2];
+            data[0]=par.calc;
+            data[1]=presion;
+            const char* dataToSend = (const char*) data;
+            uart_write_bytes(UART_NUM, dataToSend, sizeof(int)*2);
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
 
