@@ -474,9 +474,10 @@ int bme_pres_pascal(uint32_t press_adc, int t_fine) {
 // calcula e imprime el la presion
 void bme_read_press(int t_fine){
     uint8_t tmp;
-    uint8_t forced_press_addr[] = {0x21, 0x20, 0x1F};
+    uint8_t forced_press_addr[] = {0x1F, 0x20, 0x21};
 
     uint32_t press_adc = 0;
+    bme_forced_mode();
 
     bme_i2c_read(I2C_NUM_0, &forced_press_addr[0], &tmp, 1);
     press_adc = press_adc | tmp << 12;
