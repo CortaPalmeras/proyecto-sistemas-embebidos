@@ -484,10 +484,11 @@ void bme_read_press(int t_fine){
     bme_i2c_read(I2C_NUM_0, &forced_press_addr[1], &tmp, 1);
     press_adc = press_adc | tmp << 4;
     bme_i2c_read(I2C_NUM_0, &forced_press_addr[2], &tmp, 1);
+    press_adc = press_adc | (tmp & 0xf0) >> 4;
 
     uint32_t press = bme_pres_pascal(press_adc, t_fine);
 
-    printf("Presion: %f\t\t", (float)press / 100);
+    printf("Presion: %lu\t\t", press);
 }
 
 void bme_read_data(void) {
