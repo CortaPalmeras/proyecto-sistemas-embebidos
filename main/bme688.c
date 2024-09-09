@@ -592,31 +592,36 @@ void handshake(void) {
 }
 
 // Función para guardar el tamaño de la ventana en NVS
-void save_window_size(int size) {
+int save_window_size(int size) {
     nvs_handle_t my_handle;
     esp_err_t err;
+    int ret = 0;
 
     // Abre el espacio de nombres en NVS
     err = nvs_open(NVS_NAMESPACE, NVS_READWRITE, &my_handle);
     if (err != ESP_OK) {
         printf("%s: Error al abrir NVS\n", esp_err_to_name(err));
-        return;
+        return ret;
     }
 
     // Guarda el tamaño de la ventana
     err = nvs_set_i32(my_handle, "window_size", size);
     if (err != ESP_OK) {
-        printf("%s: Error al guardar el tamaño de la ventana\n", esp_err_to_name(err));
+        printf("%s: Error al guardar el tamano de la ventana\n", esp_err_to_name(err));
     } else {
         // Confirma el cambio
         err = nvs_commit(my_handle);
         if (err != ESP_OK) {
-            printf("%s: Error al confirmar el tamaño de la ventana\n", esp_err_to_name(err));
+            printf("%s: Error al confirmar el tamano de la ventana\n", esp_err_to_name(err));
+        } else {
+            printf("%s: Tamano de ventana guardado\n", esp_err_to_name(err));
+            ret = 1;
         }
     }
 
     // Cierra el espacio de nombres en NVS
     nvs_close(my_handle);
+    return ret;
 }
 
 void init_nvs() {
@@ -650,9 +655,9 @@ int load_window_size(int default_size) {
     err = nvs_get_i32(my_handle, "window_size", &size);
 
     if (err == ESP_ERR_NVS_NOT_FOUND) {
-        printf("%s: No se encontró el tamaño de la de la muestra en el NVS\n", esp_err_to_name(err));
+        printf("%s: No se encontró el tamano de la de la muestra en el NVS\n", esp_err_to_name(err));
     } else if (err != ESP_OK) {
-        printf("%s: Error al leer el tamaño de la muestra\n", esp_err_to_name(err));
+        printf("%s: Error al leer el tamano de la muestra\n", esp_err_to_name(err));
     }
 
     // Cierra el espacio de nombres en NVS
@@ -661,7 +666,8 @@ int load_window_size(int default_size) {
 }
 
 #define GET_DATA 'g'
-#define CHANGE_SAMPLE_SIZE 's'
+#define CHANGE_SAMPLE_SIZE 'c'
+#define GET_SAMPLE_SIZE 's'
 #define QUIT 'q'
 
 void app_main(void) {
@@ -688,8 +694,13 @@ void app_main(void) {
 
         } else if (command == CHANGE_SAMPLE_SIZE) {
             // revisar bien esto porque el tamaño del tipo int puede no set igual en el idf que en el pc
-            serial_read((char*)&sample_size, sizeof(sample_size)); 
-            save_window_size(sample_size);
+            uint32_t new_sample_size;
+            serial_read((char*)&new_sample_size, sizeof(new_sample_size)); 
+
+            if (save_window_size(new_sample_size)) sample_size = new_sample_size;
+
+        } else if (command == GET_SAMPLE_SIZE) {
+            uart_write_bytes(UART_NUM, (char*)&sample_size, sizeof(uint32_t));
 
         } else if (command == QUIT) {
             esp_restart();
