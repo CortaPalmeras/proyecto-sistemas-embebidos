@@ -643,7 +643,7 @@ int load_window_size(int default_size) {
 
     if (err != ESP_OK) {
         printf("%s: Error al abrir NVS\n", esp_err_to_name(err));
-        return size;
+        return default_size;
     }
 
     // Lee el tamaño de la ventana
@@ -668,14 +668,14 @@ void app_main(void) {
     uart_setup(); // Uart setup
     handshake(); // sincronizar con python
 
-    bme_get_chipid();
-    bme_get_mode();
-    bme_softreset();
-
-    init_nvs(); uint32_t sample_size = load_window_size(50);
-    /*uint32_t sample_size = 50;*/
-
     ESP_ERROR_CHECK(sensor_init());
+    bme_get_chipid();
+    bme_softreset();
+    bme_get_mode();
+    bme_forced_mode();
+
+    init_nvs();
+    uint32_t sample_size = load_window_size(50);
 
     while (1) {
         char command;

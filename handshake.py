@@ -23,12 +23,11 @@ print(resultado)
 
 print("\n-- output inicial --")
 while True:
-    data = ser.read(1).decode()
+    data = ser.readall()
     if len(data) > 0:
-        print(data, end="")
+        print(data.decode(), end="")
     else:
         break
-        
 
 
 print("\n-- estraccion de datos --")
