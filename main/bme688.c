@@ -12,6 +12,9 @@
 #include "freertos/task.h"
 #include "math.h"
 #include "sdkconfig.h"
+#include "esp_system.h"
+#include "nvs_flash.h"
+#include "nvs.h"
 
 #define CONCAT_BYTES(msb, lsb) (((uint16_t)msb << 8) | (uint16_t)lsb)
 
@@ -33,18 +36,15 @@
 #define EXAMPLE_I2C_ACK_CHECK_DIS 0x0
 #define ACK_VAL 0x0
 #define NACK_VAL 0x1
+#define NVS_NAMESPACE "storage"
 
-esp_err_t ret = ESP_OK;
-esp_err_t ret2 = ESP_OK;
 
-uint16_t val0[6];
-
-float task_delay_ms = 1000;
-
+const float task_delay_ms = 1000;
 
 /*
-Esto se copio y pego del archivo main del proyecto comunicacion serial.  Permite configurar la conexion entre el computad
-r y controlador para poder envi8ar*/
+* Esto se copio y pego del archivo main del proyecto comunicacion serial.            
+* Permite configurar la conexion entre el computador y controlador para poder enviar 
+*/
 static int uart1_printf(const char *str, va_list ap) {
     char *buf;
     vasprintf(&buf, str, ap);
@@ -76,7 +76,7 @@ static void uart_setup() {
 
 // Read UART_num for input with timeout of 1 sec
 int serial_read(char *buffer, int size){
-    int len = uart_read_bytes(UART_NUM, (uint8_t*)buffer, size, pdMS_TO_TICKS(1000));
+    int len = uart_read_bytes(UART_NUM, buffer, size, pdMS_TO_TICKS(1000));
     return len;
 }
 
@@ -98,19 +98,23 @@ esp_err_t bme_i2c_read(i2c_port_t i2c_num, uint8_t *data_addres, uint8_t *data_r
     if (size == 0) {
         return ESP_OK;
     }
+
     i2c_cmd_handle_t cmd = i2c_cmd_link_create();
     i2c_master_start(cmd);
     i2c_master_write_byte(cmd, (BME_ESP_SLAVE_ADDR << 1) | WRITE_BIT, ACK_CHECK_EN);
     i2c_master_write(cmd, data_addres, size, ACK_CHECK_EN);
     i2c_master_start(cmd);
     i2c_master_write_byte(cmd, (BME_ESP_SLAVE_ADDR << 1) | READ_BIT, ACK_CHECK_EN);
+
     if (size > 1) {
         i2c_master_read(cmd, data_rd, size - 1, ACK_VAL);
     }
+
     i2c_master_read_byte(cmd, data_rd + size - 1, NACK_VAL);
     i2c_master_stop(cmd);
     esp_err_t ret = i2c_master_cmd_begin(i2c_num, cmd, 1000 / portTICK_PERIOD_MS);
     i2c_cmd_link_delete(cmd);
+
     return ret;
 }
 
@@ -224,7 +228,7 @@ int bme_get_chipid(void) {
 int bme_softreset(void) {
     uint8_t reg_softreset = 0xE0, val_softreset = 0xB6;
 
-    ret = bme_i2c_write(I2C_NUM_0, &reg_softreset, &val_softreset, 1);
+    esp_err_t ret = bme_i2c_write(I2C_NUM_0, &reg_softreset, &val_softreset, 1);
     vTaskDelay(1000 / portTICK_PERIOD_MS);
     if (ret != ESP_OK) {
         printf("\nError en softreset: %s \n", esp_err_to_name(ret));
@@ -305,6 +309,7 @@ void bme_forced_mode(void) {
     uint8_t tmp_pow_mode;
     uint8_t pow_mode = 0;
 
+    esp_err_t ret;
     do {
         ret = bme_i2c_read(I2C_NUM_0, &ctrl_meas, &tmp_pow_mode, 1);
 
@@ -332,12 +337,12 @@ int bme_check_forced_mode(void) {
 
     uint8_t tmp, tmp2, tmp3, tmp4, tmp5;
 
-    ret = bme_i2c_read(I2C_NUM_0, &ctrl_hum, &tmp, 1);
-    ret = bme_i2c_read(I2C_NUM_0, &gas_wait_0, &tmp2, 1);
-    ret = bme_i2c_read(I2C_NUM_0, &res_heat_0, &tmp3, 1);
-    ret = bme_i2c_read(I2C_NUM_0, &ctrl_gas_1, &tmp4, 1);
-    ret = bme_i2c_read(I2C_NUM_0, &ctrl_meas, &tmp5, 1);
-    vTaskDelay(task_delay_ms / portTICK_PERIOD_MS);
+    bme_i2c_read(I2C_NUM_0, &ctrl_hum, &tmp, 1);
+    bme_i2c_read(I2C_NUM_0, &gas_wait_0, &tmp2, 1);
+    bme_i2c_read(I2C_NUM_0, &res_heat_0, &tmp3, 1);
+    bme_i2c_read(I2C_NUM_0, &ctrl_gas_1, &tmp4, 1);
+    bme_i2c_read(I2C_NUM_0, &ctrl_meas, &tmp5, 1);
+
     return (tmp == 0b001 && tmp2 == 0x59 && tmp3 == 0x00 && tmp4 == 0b100000 && tmp5 == 0b01010101);
 }
 
@@ -345,20 +350,15 @@ void bme_get_mode(void) {
     uint8_t reg_mode = 0x74;
     uint8_t tmp;
     
-
-    ret = bme_i2c_read(I2C_NUM_0, &reg_mode, &tmp, 1);
+    bme_i2c_read(I2C_NUM_0, &reg_mode, &tmp, 1);
 
     tmp = tmp & 0x3;
 
     printf("Valor de BME MODE: %2X \n\n", tmp);
 }
 
-typedef struct datos{
-    int temp, press;
-} datos;
-
 // realiza el calculo de la temperatura y setea t_fine
-double bme_temp_celsius(uint32_t temp_adc, uint32_t* t_fine) {
+uint32_t bme_temp_celsius(const uint32_t temp_adc, uint32_t* t_fine) {
     // Datasheet[23]
     // https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme688-ds000.pdf#page=23
 
@@ -393,11 +393,11 @@ double bme_temp_celsius(uint32_t temp_adc, uint32_t* t_fine) {
     *t_fine = (int32_t) var2 + var3;
     calc_temp = (((*t_fine) * 5) + 128) >> 8;
 
-    return (double)calc_temp / 100.0;
+    return calc_temp;
 }
 
 // prepara las variables para el calculo de la temperatura
-double bme_read_temp(uint32_t* t_fine) { 
+uint32_t bme_read_temp(uint32_t* t_fine) { 
     // https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme688-ds000.pdf#page=23
     uint8_t tmp;
 
@@ -405,7 +405,6 @@ double bme_read_temp(uint32_t* t_fine) {
     uint8_t forced_temp_addr[] = {0x22, 0x23, 0x24};
 
     uint32_t temp_adc = 0;
-    bme_forced_mode();
     
     // https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme688-ds000.pdf#page=41
     bme_i2c_read(I2C_NUM_0, &forced_temp_addr[0], &tmp, 1);
@@ -419,7 +418,7 @@ double bme_read_temp(uint32_t* t_fine) {
 }
 
 // retorna la presion atmosferica en pascal
-uint32_t bme_pres_pascal(uint32_t press_adc, int t_fine) {
+uint32_t bme_pres_pascal(const uint32_t press_adc, const uint32_t t_fine) {
     // https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme688-ds000.pdf#page=24
 
     uint8_t addr_par_p1_lsb = 0X8E, addr_par_p1_msb = 0x8F;
@@ -502,13 +501,12 @@ uint32_t bme_pres_pascal(uint32_t press_adc, int t_fine) {
 }
 
 // calcula e imprime el la presion
-uint32_t bme_read_pres(int t_fine){
+uint32_t bme_read_pres(const uint32_t t_fine){
     // https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme688-ds000.pdf#page=24
     uint8_t tmp;
     uint8_t forced_pres_addr[] = {0x1F, 0x20, 0x21};
 
     uint32_t pres_adc = 0;
-    bme_forced_mode();
 
     // https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme688-ds000.pdf#page=41
     bme_i2c_read(I2C_NUM_0, &forced_pres_addr[0], &tmp, 1);
@@ -521,56 +519,182 @@ uint32_t bme_read_pres(int t_fine){
     return bme_pres_pascal(pres_adc, t_fine);
 }
 
-void bme_read_data(void) {
-    for (;;) {
+
+void bme_read_data(const uint32_t sample_size) {
+    uint32_t sumatoria_temp = 0;
+    uint32_t sumatoria_pres = 0;
+
+    for (int i = 0; i < sample_size; ++i) {
         uint32_t t_fine;
-        double temp = bme_read_temp(&t_fine);
-        uint32_t presion = bme_read_pres(t_fine);
 
-        printf("Temperatura: %f\t\tPresion: %lu\t\t\r", temp, presion);
+        bme_forced_mode();
+        uint32_t temp = bme_read_temp(&t_fine);
+        uint32_t pres = bme_read_pres(t_fine);
 
-        /*
-        Comenté esto por mientras para poder compilar el codigo
-        char dataResponse[4];
-        int n=0;
+        // printf("Temperatura: %f\t\tPresion: %lu\t\t\r", (double)temp / 100.0, pres);
 
-        float a_temp = a_temp + par.calc * par.calc;
-        float a_pres = a_pres + presion * presion;
+        uint32_t data[2];
+        data[0] = temp;
+        data[1] = pres;
+        uart_write_bytes(UART_NUM, (const char*)data, sizeof(uint32_t) * 2);
 
-        n++;
-        int rLen = serial_read(dataResponse, 4);
+        uint32_t normalized_temp = temp / 100;
+        uint32_t normalized_pres = pres / 1000;
+        sumatoria_temp += normalized_temp * normalized_temp;
+        sumatoria_pres += normalized_pres * normalized_pres;
+    }
 
-        if (rLen >0) {
-            if (strcmp(dataResponse, "END") == 0)
-            {
-                float data[2];
-                data[0]=sqrt(a_temp/n);
-                data[1]=sqrt(a_pres/n);
-                const char* dataToSend = (const char*) data;
-                uart_write_bytes(UART_NUM, dataToSend, sizeof(float)*2);
-                break;
+    double data[2];
+    data[0] = sqrt((double)sumatoria_temp / sample_size);
+    data[1] = sqrt((double)sumatoria_pres / sample_size);
+    uart_write_bytes(UART_NUM, (const char*)data, sizeof(double)*2);
+}
+
+
+void wait_for_plus(void) {
+    char handshake = '\0';
+    do {
+        serial_read(&handshake, 1);
+    } while (handshake != '+');
+}
+
+int seek_star(void) {
+    char handshake = '\0';
+
+    while (1) {
+        int rLen = serial_read(&handshake, 1);
+
+        if (rLen == 1) {
+            if (handshake == '+') {
+                continue;
+            } else if (handshake == '*') {
+                return 1;
+            } else {
+                return 0;
             }
         }
-
-        else {
-            int data[2];
-            data[0]=par.calc;
-            data[1]=presion;
-            const char* dataToSend = (const char*) data;
-            uart_write_bytes(UART_NUM, dataToSend, sizeof(int)*2);
-        }
-
-        vTsaskDelay(pdMS_TO_TICKS(1000));
-        */
     }
 }
 
+// funcion que se asegura de que el esp y el computador están sincronizados
+void handshake(void) {
+
+    while (1) {
+        wait_for_plus();
+
+        if (seek_star()) {
+            break;
+        } else {
+            uart_write_bytes(UART_NUM, "FAIL", 4);
+        }
+    }
+
+    uart_write_bytes(UART_NUM, "GOOD", 4);
+}
+
+// Función para guardar el tamaño de la ventana en NVS
+void save_window_size(int size) {
+    nvs_handle_t my_handle;
+    esp_err_t err;
+
+    // Abre el espacio de nombres en NVS
+    err = nvs_open(NVS_NAMESPACE, NVS_READWRITE, &my_handle);
+    if (err != ESP_OK) {
+        printf("Error al abrir NVS: %s\n", esp_err_to_name(err));
+        return;
+    }
+
+    // Guarda el tamaño de la ventana
+    err = nvs_set_i32(my_handle, "window_size", size);
+    if (err != ESP_OK) {
+        printf("Error al guardar el tamaño de la ventana: %s\n", esp_err_to_name(err));
+    } else {
+        // Confirma el cambio
+        err = nvs_commit(my_handle);
+        if (err != ESP_OK) {
+            printf("Error al confirmar el tamaño de la ventana: %s\n", esp_err_to_name(err));
+        }
+    }
+
+    // Cierra el espacio de nombres en NVS
+    nvs_close(my_handle);
+}
+
+// Función para leer el tamaño de la ventana desde NVS
+int load_window_size() {
+    nvs_handle_t my_handle;
+    esp_err_t err;
+    int32_t size = 50;  // Valor por defecto
+
+    // Abre el espacio de nombres en NVS
+    err = nvs_open(NVS_NAMESPACE, NVS_READONLY, &my_handle);
+
+    if (err != ESP_OK) {
+        printf("Error al abrir NVS: %s\n", esp_err_to_name(err));
+
+    } else {
+        // Lee el tamaño de la ventana
+        err = nvs_get_i32(my_handle, "window_size", &size);
+
+        if (err == ESP_ERR_NVS_NOT_FOUND) {
+            printf("No se encontró el tamaño de la ventana, usando valor por defecto\n");
+        } else if (err != ESP_OK) {
+            printf("Error al leer el tamaño de la ventana: %s\n", esp_err_to_name(err));
+        }
+    }
+
+    // Cierra el espacio de nombres en NVS
+    nvs_close(my_handle);
+    return size;
+}
+
+#define GET_DATA 'g'
+#define CHANGE_SAMPLE_SIZE 's'
+#define QUIT 'q'
+
 void app_main(void) {
+    uart_setup(); // Uart setup
+    handshake(); // sincronizar con python
+
+    // bme_get_chipid();
+    // bme_get_mode();
+    // bme_softreset();
+
+    // Inicializar NVS
+    /*esp_err_t ret = nvs_flash_init();*/
+
+    // Si el NVS necesita ser reformateado
+    /*while (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {*/
+    /*    printf("NVS necesita ser reformateado");*/
+    /*    ESP_ERROR_CHECK(nvs_flash_erase());*/
+    /*    ret = nvs_flash_init();*/
+    /*}*/
+    /*ESP_ERROR_CHECK(ret);*/
+    /**/
+    /*uint32_t sample_size = load_window_size();*/
+    uint32_t sample_size = 50;
+
     ESP_ERROR_CHECK(sensor_init());
-    bme_get_chipid();
-    bme_softreset();
-    bme_get_mode();
-    bme_forced_mode();
-    printf("Comienza lectura\n\n");
-    bme_read_data();
+
+    while (1) {
+        char command;
+
+        // esto no quema el bme, la funcion serial read tiene un timeout
+        while (serial_read((char*)&command, 1) == 0) continue;
+
+        if (command == GET_DATA) {
+            bme_read_data(sample_size);
+
+        } else if (command == CHANGE_SAMPLE_SIZE) {
+            // revisar bien esto porque el tamaño del tipo int puede no set igual en el idf que en el pc
+            serial_read((char*)&sample_size, sizeof(sample_size)); 
+            save_window_size(sample_size);
+
+        } else if (command == QUIT) {
+            esp_restart();
+
+        } else {
+            printf("FAIL");
+        }
+    }
 }
