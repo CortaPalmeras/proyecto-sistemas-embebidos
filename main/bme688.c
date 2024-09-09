@@ -7,6 +7,7 @@
 
 #include "driver/i2c.h"
 #include "driver/uart.h"
+#include "esp_err.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -38,8 +39,6 @@
 #define NACK_VAL 0x1
 #define NVS_NAMESPACE "storage"
 
-
-const float task_delay_ms = 1000;
 
 /*
 * Esto se copio y pego del archivo main del proyecto comunicacion serial.            
@@ -231,7 +230,7 @@ int bme_softreset(void) {
     esp_err_t ret = bme_i2c_write(I2C_NUM_0, &reg_softreset, &val_softreset, 1);
     vTaskDelay(1000 / portTICK_PERIOD_MS);
     if (ret != ESP_OK) {
-        printf("\nError en softreset: %s \n", esp_err_to_name(ret));
+        printf("%s: Error en softreset\n", esp_err_to_name(ret));
         return 1;
     } else {
         printf("\nSoftreset: OK\n\n");
@@ -600,19 +599,19 @@ void save_window_size(int size) {
     // Abre el espacio de nombres en NVS
     err = nvs_open(NVS_NAMESPACE, NVS_READWRITE, &my_handle);
     if (err != ESP_OK) {
-        printf("Error al abrir NVS: %s\n", esp_err_to_name(err));
+        printf("%s: Error al abrir NVS\n", esp_err_to_name(err));
         return;
     }
 
     // Guarda el tamaño de la ventana
     err = nvs_set_i32(my_handle, "window_size", size);
     if (err != ESP_OK) {
-        printf("Error al guardar el tamaño de la ventana: %s\n", esp_err_to_name(err));
+        printf("%s: Error al guardar el tamaño de la ventana\n", esp_err_to_name(err));
     } else {
         // Confirma el cambio
         err = nvs_commit(my_handle);
         if (err != ESP_OK) {
-            printf("Error al confirmar el tamaño de la ventana: %s\n", esp_err_to_name(err));
+            printf("%s: Error al confirmar el tamaño de la ventana\n", esp_err_to_name(err));
         }
     }
 
@@ -620,27 +619,40 @@ void save_window_size(int size) {
     nvs_close(my_handle);
 }
 
+void init_nvs() {
+    // Inicializar NVS
+    esp_err_t err = nvs_flash_init();
+
+    // Si el NVS necesita ser reformateado
+    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        printf("%s: NVS necesita ser reformateado", esp_err_to_name(err));
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        err = nvs_flash_init();
+    }
+
+    ESP_ERROR_CHECK(err);
+}
+
 // Función para leer el tamaño de la ventana desde NVS
-int load_window_size() {
+int load_window_size(int default_size) {
     nvs_handle_t my_handle;
-    esp_err_t err;
-    int32_t size = 50;  // Valor por defecto
+    int32_t size = default_size;
 
     // Abre el espacio de nombres en NVS
-    err = nvs_open(NVS_NAMESPACE, NVS_READONLY, &my_handle);
+    esp_err_t err = nvs_open(NVS_NAMESPACE, NVS_READONLY, &my_handle);
 
     if (err != ESP_OK) {
-        printf("Error al abrir NVS: %s\n", esp_err_to_name(err));
+        printf("%s: Error al abrir NVS\n", esp_err_to_name(err));
+        return size;
+    }
 
-    } else {
-        // Lee el tamaño de la ventana
-        err = nvs_get_i32(my_handle, "window_size", &size);
+    // Lee el tamaño de la ventana
+    err = nvs_get_i32(my_handle, "window_size", &size);
 
-        if (err == ESP_ERR_NVS_NOT_FOUND) {
-            printf("No se encontró el tamaño de la ventana, usando valor por defecto\n");
-        } else if (err != ESP_OK) {
-            printf("Error al leer el tamaño de la ventana: %s\n", esp_err_to_name(err));
-        }
+    if (err == ESP_ERR_NVS_NOT_FOUND) {
+        printf("%s: No se encontró el tamaño de la de la muestra en el NVS\n", esp_err_to_name(err));
+    } else if (err != ESP_OK) {
+        printf("%s: Error al leer el tamaño de la muestra\n", esp_err_to_name(err));
     }
 
     // Cierra el espacio de nombres en NVS
@@ -656,23 +668,12 @@ void app_main(void) {
     uart_setup(); // Uart setup
     handshake(); // sincronizar con python
 
-    // bme_get_chipid();
-    // bme_get_mode();
-    // bme_softreset();
+    bme_get_chipid();
+    bme_get_mode();
+    bme_softreset();
 
-    // Inicializar NVS
-    /*esp_err_t ret = nvs_flash_init();*/
-
-    // Si el NVS necesita ser reformateado
-    /*while (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {*/
-    /*    printf("NVS necesita ser reformateado");*/
-    /*    ESP_ERROR_CHECK(nvs_flash_erase());*/
-    /*    ret = nvs_flash_init();*/
-    /*}*/
-    /*ESP_ERROR_CHECK(ret);*/
-    /**/
-    /*uint32_t sample_size = load_window_size();*/
-    uint32_t sample_size = 50;
+    init_nvs(); uint32_t sample_size = load_window_size(50);
+    /*uint32_t sample_size = 50;*/
 
     ESP_ERROR_CHECK(sensor_init());
 

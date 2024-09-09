@@ -16,11 +16,12 @@ _ = ser.write('q'.encode())
 _ = ser.readall()
 
 # heandshake
+print("\n-- heandshake --")
 _ = ser.write('++++++++++*'.encode())
 resultado = ser.read(4).decode()
-print(f"resultado heandshake: {resultado}")
+print(resultado)
 
-print("\n-- comienza output --")
+print("\n-- output inicial --")
 while True:
     data = ser.read(1).decode()
     if len(data) > 0:
@@ -29,6 +30,8 @@ while True:
         break
         
 
+
+print("\n-- estraccion de datos --")
 _ = ser.write('g'.encode())
 
 sum_temp = 0
@@ -46,14 +49,14 @@ for _ in range(SAMPLES):
 
 local_rms_temp = math.sqrt(sum_temp / SAMPLES)
 local_rms_pres = math.sqrt(sum_pres / SAMPLES)
-print(f"\n-- resltados locales --")
+print(f"\n-- resultados RMS locales --")
 print(f"temp: {local_rms_temp}")
 print(f"pres: {local_rms_pres}")
 
 
 data = ser.read(16)
 esp_rms_temp, esp_rms_pres = unpack("dd", data)
-print(f"\n-- resltados esp --")
+print(f"\n-- resultados RMS esp --")
 print(f"temp: {esp_rms_temp}")
 print(f"pres: {esp_rms_pres}")
 
