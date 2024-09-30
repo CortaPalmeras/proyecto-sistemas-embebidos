@@ -5,6 +5,7 @@ import serial
 from struct import pack, unpack
 import matplotlib.pyplot as plt
 
+
 # Se configura el puerto y el BAUD_Rate
 PORT = '/dev/ttyUSB0'  # Esto depende del sistema operativo
 BAUD_RATE = 115200  # Debe coincidir con la configuración de la ESP32
@@ -24,12 +25,7 @@ print(resultado)
 
 # imprimir a la terminal logs de inicio
 print("\n-- output inicial --")
-while True:
-    data = ser.readall()
-    if len(data) > 0:
-        print(data.decode(), end="")
-    else:
-        break
+print(ser.readall(), end="")
 
 # se lee el tamanho de la ventana de datos
 def solicitar_tamano_ventana():
@@ -86,12 +82,7 @@ def solicitar_ventana_datos(progress_dialog):
 
         progress_dialog.setValue(i+1)
         if progress_dialog.wasCanceled():
-            while True:
-                data = ser.readall()
-                if len(data) > 0:
-                    print(data.decode(), end="")
-                else:
-                    break
+            print(ser.readall(), end="")
             return
             
 
@@ -117,12 +108,7 @@ def cambiar_tamanho_ventana(tamanho: int) -> bool:
     _ = ser.write(pack('I', tamanho))
 
     # en caso de el esp devuelva errores estos se imprimen en la terminal
-    while True:
-        data = ser.readall()
-        if len(data) > 0:
-            print(data.decode(), end="")
-        else:
-            break
+    print(ser.readall(), end="")
 
     samples = solicitar_tamano_ventana()
     return samples == tamanho
