@@ -13,23 +13,23 @@
 #include "freertos/task.h"
 #include "math.h"
 
-#include "sdkconfig.h"
 #include "esp_system.h"
-#include "nvs_flash.h"
 #include "nvs.h"
+#include "nvs_flash.h"
+#include "sdkconfig.h"
 
 #define CONCAT_BYTES(msb, lsb) (((uint16_t)msb << 8) | (uint16_t)lsb)
 
-#define BUF_SIZE (128)       // buffer size
-#define TXD_PIN 1            // UART TX pin
-#define RXD_PIN 3            // UART RX pin
-#define UART_NUM UART_NUM_0  // UART port number
-#define BAUD_RATE 115200     // Baud rate
+#define BUF_SIZE (128)      // buffer size
+#define TXD_PIN 1           // UART TX pin
+#define RXD_PIN 3           // UART RX pin
+#define UART_NUM UART_NUM_0 // UART port number
+#define BAUD_RATE 115200    // Baud rate
 #define M_PI 3.14159265358979323846
-#define REDIRECT_LOGS 1 
+#define REDIRECT_LOGS 1
 
-#define I2C_MASTER_SCL_IO GPIO_NUM_22  // GPIO pin
-#define I2C_MASTER_SDA_IO GPIO_NUM_21  // GPIO pin
+#define I2C_MASTER_SCL_IO GPIO_NUM_22 // GPIO pin
+#define I2C_MASTER_SDA_IO GPIO_NUM_21 // GPIO pin
 #define I2C_MASTER_FREQ_HZ 10000
 #define BME_ESP_SLAVE_ADDR 0x76
 #define WRITE_BIT 0x0
@@ -40,14 +40,12 @@
 #define NACK_VAL 0x1
 #define NVS_NAMESPACE "storage"
 
-
-
 /*
-* Esto se copio y pego del archivo main del proyecto comunicacion serial.            
-* Permite configurar la conexion entre el computador y controlador para poder enviar 
-*/
-static int uart1_printf(const char *str, va_list ap) {
-    char *buf;
+ * Esto se copio y pego del archivo main del proyecto comunicacion serial.
+ * Permite configurar la conexion entre el computador y controlador para poder enviar
+ */
+static int uart1_printf(const char* str, va_list ap) {
+    char* buf;
     vasprintf(&buf, str, ap);
     uart_write_bytes(UART_NUM_1, buf, strlen(buf));
     free(buf);
@@ -76,7 +74,7 @@ static void uart_setup() {
 }
 
 // Read UART_num for input with timeout of 1 sec
-int serial_read(char *buffer, int size){
+int serial_read(char* buffer, int size) {
     int len = uart_read_bytes(UART_NUM, buffer, size, pdMS_TO_TICKS(1000));
     return len;
 }
@@ -90,12 +88,12 @@ esp_err_t sensor_init(void) {
     conf.scl_io_num = I2C_MASTER_SCL_IO;
     conf.scl_pullup_en = GPIO_PULLUP_DISABLE;
     conf.master.clk_speed = I2C_MASTER_FREQ_HZ;
-    conf.clk_flags = I2C_SCLK_SRC_FLAG_FOR_NOMAL;  // 0
+    conf.clk_flags = I2C_SCLK_SRC_FLAG_FOR_NOMAL; // 0
     i2c_param_config(i2c_master_port, &conf);
     return i2c_driver_install(i2c_master_port, conf.mode, 0, 0, 0);
 }
 
-esp_err_t bme_i2c_read(i2c_port_t i2c_num, uint8_t *data_addres, uint8_t *data_rd, size_t size) {
+esp_err_t bme_i2c_read(i2c_port_t i2c_num, uint8_t* data_addres, uint8_t* data_rd, size_t size) {
     if (size == 0) {
         return ESP_OK;
     }
@@ -119,7 +117,7 @@ esp_err_t bme_i2c_read(i2c_port_t i2c_num, uint8_t *data_addres, uint8_t *data_r
     return ret;
 }
 
-esp_err_t bme_i2c_write(i2c_port_t i2c_num, uint8_t *data_addres, uint8_t *data_wr, size_t size) {
+esp_err_t bme_i2c_write(i2c_port_t i2c_num, uint8_t* data_addres, uint8_t* data_wr, size_t size) {
     uint8_t size1 = 1;
     i2c_cmd_handle_t cmd = i2c_cmd_link_create();
     i2c_master_start(cmd);
@@ -220,7 +218,7 @@ int bme_get_chipid(void) {
         printf("Chip BME688 reconocido.\n\n");
         return 0;
     } else {
-        printf("Chip BME688 no reconocido. \nCHIP ID: %2x\n\n", tmp);  // %2X
+        printf("Chip BME688 no reconocido. \nCHIP ID: %2x\n\n", tmp); // %2X
     }
 
     return 1;
@@ -350,7 +348,7 @@ int bme_check_forced_mode(void) {
 void bme_get_mode(void) {
     uint8_t reg_mode = 0x74;
     uint8_t tmp;
-    
+
     bme_i2c_read(I2C_NUM_0, &reg_mode, &tmp, 1);
 
     tmp = tmp & 0x3;
@@ -364,9 +362,10 @@ void bme_get_mode(void) {
  * @param array Arreglo de elementos sobre los que se quiere calcular la FFT
  * @param size Tamano del arreglo
  * @param array_re Direccion del arreglo donde se guardara la parte real. Debe ser de tamano size
- * @param array_im Direccion del arreglo donde se guardara la parte imaginaria. Debe ser de tamano size
+ * @param array_im Direccion del arreglo donde se guardara la parte imaginaria. Debe ser de tamano
+ * size
  */
-void calcularFFT(float *array, int size, float *array_re, float *array_im) {
+void calcularFFT(float* array, int size, float* array_re, float* array_im) {
     for (int k = 0; k < size; k++) {
         float real = 0;
         float imag = 0;
@@ -376,8 +375,8 @@ void calcularFFT(float *array, int size, float *array_re, float *array_im) {
             float cos_angulo = cos(angulo);
             float sin_angulo = -sin(angulo);
 
-            real += array[n] * cos_angulo;
-            imag += array[n] * sin_angulo;
+            real += cos_angulo * array[n];
+            imag += sin_angulo * array[n];
         }
         real /= size;
         imag /= size;
@@ -419,14 +418,14 @@ uint32_t bme_temp_celsius(const uint32_t temp_adc, uint32_t* t_fine) {
     var2 = (var1 * (int32_t)par_t2) >> 11;
     var3 = ((var1 >> 1) * (var1 >> 1)) >> 12;
     var3 = (var3 * ((int32_t)par_t3 << 4)) >> 14;
-    *t_fine = (int32_t) var2 + var3;
+    *t_fine = (int32_t)var2 + var3;
     calc_temp = (((*t_fine) * 5) + 128) >> 8;
 
     return calc_temp;
 }
 
 // prepara las variables para el calculo de la temperatura
-uint32_t bme_read_temp(uint32_t* t_fine) { 
+uint32_t bme_read_temp(uint32_t* t_fine) {
     // https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme688-ds000.pdf#page=23
     uint8_t tmp;
 
@@ -434,7 +433,7 @@ uint32_t bme_read_temp(uint32_t* t_fine) {
     uint8_t forced_temp_addr[] = {0x22, 0x23, 0x24};
 
     uint32_t temp_adc = 0;
-    
+
     // https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme688-ds000.pdf#page=41
     bme_i2c_read(I2C_NUM_0, &forced_temp_addr[0], &tmp, 1);
     temp_adc = temp_adc | tmp << 12;
@@ -460,7 +459,7 @@ uint32_t bme_pres_pascal(const uint32_t press_adc, const uint32_t t_fine) {
     uint8_t addr_par_p8_lsb = 0x9C, addr_par_p8_msb = 0x9D;
     uint8_t addr_par_p9_lsb = 0x9E, addr_par_p9_msb = 0x9F;
     uint8_t addr_par_p10_lsb = 0xA0;
-    
+
     uint16_t par_p1;
     uint16_t par_p2;
     uint16_t par_p3;
@@ -471,7 +470,7 @@ uint32_t bme_pres_pascal(const uint32_t press_adc, const uint32_t t_fine) {
     uint16_t par_p8;
     uint16_t par_p9;
     uint16_t par_p10;
-    
+
     uint8_t par[16];
     bme_i2c_read(I2C_NUM_0, &addr_par_p1_lsb, par, 1);
     bme_i2c_read(I2C_NUM_0, &addr_par_p1_msb, par + 1, 1);
@@ -507,8 +506,8 @@ uint32_t bme_pres_pascal(const uint32_t press_adc, const uint32_t t_fine) {
     var2 = var2 + ((var1 * par_p5) << 1);
     var2 = (var2 >> 2) + (par_p4 << 16);
 
-    var1 = (((((var1 >> 2) * (var1 >> 2)) >> 13) *
-        ((int32_t)par_p3 << 5)) >> 3) + (((int32_t)par_p2 * var1) >> 1);
+    var1 = (((((var1 >> 2) * (var1 >> 2)) >> 13) * ((int32_t)par_p3 << 5)) >> 3) +
+           (((int32_t)par_p2 * var1) >> 1);
     var1 = var1 >> 18;
     var1 = ((32768 + var1) * (int32_t)par_p1) >> 15;
     uint32_t press_comp = 1048576 - press_adc;
@@ -517,20 +516,19 @@ uint32_t bme_pres_pascal(const uint32_t press_adc, const uint32_t t_fine) {
         press_comp = ((press_comp / (uint32_t)var1) << 1);
     else
         press_comp = ((press_comp << 1) / (uint32_t)var1);
-    var1 = ((int32_t)par_p9 * (int32_t)(((press_comp >> 3) *
-        (press_comp >> 3)) >> 13)) >> 12;
+    var1 = ((int32_t)par_p9 * (int32_t)(((press_comp >> 3) * (press_comp >> 3)) >> 13)) >> 12;
     var2 = ((int32_t)(press_comp >> 2) * (int32_t)par_p8) >> 13;
     int32_t var3 = ((int32_t)(press_comp >> 8) * (int32_t)(press_comp >> 8) *
-        (int32_t)(press_comp >> 8) * (int32_t)par_p10) >> 17;
-        
-    press_comp = (int32_t)(press_comp) +
-        ((var1 + var2 + var3 + ((int32_t)par_p7 << 7)) >> 4);
+                    (int32_t)(press_comp >> 8) * (int32_t)par_p10) >>
+                   17;
+
+    press_comp = (int32_t)(press_comp) + ((var1 + var2 + var3 + ((int32_t)par_p7 << 7)) >> 4);
 
     return press_comp;
 }
 
 // calcula e imprime el la presion
-uint32_t bme_read_pres(const uint32_t t_fine){
+uint32_t bme_read_pres(const uint32_t t_fine) {
     // https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme688-ds000.pdf#page=24
     uint8_t tmp;
     uint8_t forced_pres_addr[] = {0x1F, 0x20, 0x21};
@@ -538,46 +536,44 @@ uint32_t bme_read_pres(const uint32_t t_fine){
     uint32_t pres_adc = 0;
 
     // https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme688-ds000.pdf#page=41
-    bme_i2c_read(I2C_NUM_0, &forced_pres_addr[0], &tmp, 1);
-    pres_adc = pres_adc | tmp << 12;
-    bme_i2c_read(I2C_NUM_0, &forced_pres_addr[1], &tmp, 1);
-    pres_adc = pres_adc | tmp << 4;
-    bme_i2c_read(I2C_NUM_0, &forced_pres_addr[2], &tmp, 1);
-    pres_adc = pres_adc | (tmp & 0xf0) >> 4;
+    bme_i2c_read(I2C_NUM_0, forced_pres_addr, &tmp, 1);
+    pres_adc = tmp << 12;
+    bme_i2c_read(I2C_NUM_0, forced_pres_addr + 1, &tmp, 1);
+    pres_adc = pres_adc | (tmp << 4);
+    bme_i2c_read(I2C_NUM_0, forced_pres_addr + 2, &tmp, 1);
+    pres_adc = pres_adc | (tmp >> 4);
 
     return bme_pres_pascal(pres_adc, t_fine);
 }
 
 uint32_t bme_hum_percent(const uint32_t hum_adc, const uint32_t temp_comp) {
     // https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme688-ds000.pdf#page=26
-    uint8_t addr_par_h_init = 0xE1
+    uint8_t addr_par_h_init = 0xE1;
 
     uint8_t par[8];
     bme_i2c_read(I2C_NUM_0, &addr_par_h_init, par, 8);
 
     uint16_t par_h1 = (par[1] & 0xF) | (par[2] << 4);
-    uint16_t par_h2 = (par[1] >> 4) | (par[0] << 4);
+    uint16_t par_h2 = (par[1] >> 4) | (par[0] << 4) ;
     uint16_t par_h3 = par[3];
     uint16_t par_h4 = par[4];
     uint16_t par_h5 = par[5];
     uint16_t par_h6 = par[6];
     uint16_t par_h7 = par[7];
 
-
-    temp_scaled = (int32_t)temp_comp;
+    int32_t temp_scaled = (int32_t)temp_comp;
     int32_t var1 = (int32_t)hum_adc - (int32_t)((int32_t)par_h1 << 4) -
-           (((temp_scaled * (int32_t)par_h3) / ((int32_t)100)) >> 1)
-    int32_t var2 = ((int32_t)par_h2 * (((temp_scaled *
-           (int32_t)par_h4) / ((int32_t)100)) +
-           (((temp_scaled * ((temp_scaled * (int32_t)par_h5) /
-           ((int32_t)100))) >> 6) / ((int32_t)100)) + ((int32_t)(1 << 14)))) >> 10;
+                    (((temp_scaled * (int32_t)par_h3) / ((int32_t)100)) >> 1);
+    int32_t var2 = ((int32_t)par_h2 *
+                    (((temp_scaled * (int32_t)par_h4) / ((int32_t)100)) +
+                     (((temp_scaled * ((temp_scaled * (int32_t)par_h5) / 
+                     ((int32_t)100))) >> 6) /((int32_t)100)) +((int32_t)(1 << 14)))) >> 10;
     int32_t var3 = var1 * var2;
-    int32_t var4 = (((int32_t)par_h6 << 7) +
-           ((temp_scaled * (int32_t)par_h7) / ((int32_t)100))) >> 4;
+    int32_t var4 = (((int32_t)par_h6 << 7) + ((temp_scaled * (int32_t)par_h7) / ((int32_t)100))) >> 4;
     int32_t var5 = ((var3 >> 14) * (var3 >> 14)) >> 10;
     int32_t var6 = (var4 * var5) >> 1;
-    hum_comp = (var3 + var6) >> 12;
-    hum_comp = (((var3 + var6) >> 10) * ((int32_t) 1000)) >> 12;
+    int32_t hum_comp = (var3 + var6) >> 12;
+    hum_comp = (((var3 + var6) >> 10) * ((int32_t)1000)) >> 12;
 
     return hum_comp;
 }
@@ -591,34 +587,80 @@ uint32_t bme_read_hum(const uint32_t temp_comp) {
 
     // https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme688-ds000.pdf#page=41
     bme_i2c_read(I2C_NUM_0, &forced_hum_addr[0], &tmp, 1);
-    hum_adc = hum_adc | tmp << 8;
+    hum_adc = tmp << 8;
     bme_i2c_read(I2C_NUM_0, &forced_hum_addr[1], &tmp, 1);
     hum_adc = hum_adc | tmp;
 
     return bme_hum_percent(hum_adc, temp_comp);
 }
 
+uint32_t bme_gas_ohm(const uint16_t gas_adc, const uint8_t gas_range) {
+    uint32_t var1 = UINT32_C(262144) >> gas_range;
+    int32_t var2 = (int32_t)gas_adc - INT32_C(512);
+    var2 *= INT32_C(3);
+    var2 = INT32_C(4096) + var2;
+    uint32_t calc_gas_res = (UINT32_C(10000) * var1) / (uint32_t)var2;
+    return calc_gas_res * 100;
+}
+
+uint32_t bme_read_gas(void) {
+    uint8_t tmp;
+    uint8_t forced_gas_addr[] = {0x2C, 0x2D};
+
+    uint16_t gas_adc;
+    uint8_t gas_range;
+
+    // https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme688-ds000.pdf#page=41
+    bme_i2c_read(I2C_NUM_0, forced_gas_addr, &tmp, 1);
+    gas_adc = tmp << 4;
+    bme_i2c_read(I2C_NUM_0, forced_gas_addr + 1, &tmp, 1);
+    gas_adc = (gas_adc | tmp) >> 4;
+    gas_range = tmp & 0xf;
+
+    return bme_gas_ohm(gas_adc, gas_range);
+}
+
+void obtener5Peaks(float* datos, float* resultados, uint32_t sample_size) {
+    for (int i = 0; i < sample_size; i++) {
+        for (int j = 0; j < 5; j++) {
+            if (datos[i] > resultados[j]) {
+                for (int k = 4; k > j; k--) {
+                    resultados[k] = resultados[k - 1];
+                }
+                resultados[j] = datos[i];
+                break; 
+            }
+        }
+    }
+}
+
+
 void bme_read_data(const uint32_t sample_size) {
-    uint32_t sumatoria_temp = 0;
-    uint32_t sumatoria_pres = 0;
-    uint32_t sumatoria_hum = 0;
-    uint32_t sumatoria_gas = 0;
-    
-    float valores_temp[sample_size];
-    float valores_pres[sample_size];
-    float valores_hum[sample_size];
-    float valores_gas[sample_size];
+    float sumatoria_temp = 0;
+    float sumatoria_pres = 0;
+    float sumatoria_hum = 0;
+    float sumatoria_gas = 0;
 
-    float resultado_fft_real_temp[sample_size];
-    float resultado_fft_real_pres[sample_size];
-    float resultado_fft_real_hum[sample_size];
-    float resultado_fft_real_gas[sample_size];
+    float *valores_temp = malloc(sizeof(float) * sample_size);
+    float *valores_pres = malloc(sizeof(float) * sample_size);
+    float *valores_hum = malloc(sizeof(float) * sample_size);
+    float *valores_gas = malloc(sizeof(float) * sample_size);
 
-    float resultado_fft_imag_temp[sample_size];
-    float resultado_fft_imag_pres[sample_size];
-    float resultado_fft_imag_hum[sample_size];
-    float resultado_fft_imag_gas[sample_size];
-    
+    float *resultado_fft_real_temp = malloc(sizeof(float) * sample_size);
+    float *resultado_fft_real_pres = malloc(sizeof(float) * sample_size);
+    float *resultado_fft_real_hum = malloc(sizeof(float) * sample_size);
+    float *resultado_fft_real_gas = malloc(sizeof(float) * sample_size);
+
+    float *resultado_fft_imag_temp = malloc(sizeof(float) * sample_size);
+    float *resultado_fft_imag_pres = malloc(sizeof(float) * sample_size);
+    float *resultado_fft_imag_hum = malloc(sizeof(float) * sample_size);
+    float *resultado_fft_imag_gas = malloc(sizeof(float) * sample_size);
+
+    float peaks5_temp[5];
+    float peaks5_pres[5];
+    float peaks5_hum[5];
+    float peaks5_gas[5];
+
     for (int i = 0; i < sample_size; ++i) {
         uint32_t t_fine;
 
@@ -626,42 +668,85 @@ void bme_read_data(const uint32_t sample_size) {
         uint32_t temp_comp = bme_read_temp(&t_fine);
         uint32_t pres_comp = bme_read_pres(t_fine);
         uint32_t hum_comp = bme_read_hum(temp_comp);
-        uint32_t gas_comp = 0;
+        uint32_t gas_comp = bme_read_gas();
 
-        // printf("Temperatura: %f\t\tPresion: %lu\t\t\r", (double)temp / 100.0, pres);
-        valores_temp[i] = temp_comp;
-        valores_pres[i] = pres_comp;
-        valores_hum[i] = hum_comp;
-        valores_gas[i] = gas_comp;
-        
-        uint32_t data[4];
-        data[0] = temp_comp;
-        data[1] = pres_comp;
-        data[2] = hum_comp;
-        data[3] = gas_comp;
-        uart_write_bytes(UART_NUM, (const char*)data, sizeof(uint32_t) * 3);
+        float normalized_temp = (float) temp_comp / 100;
+        float normalized_pres = (float) pres_comp / 1000;
+        float normalized_hum = (float) hum_comp / 100000000;
+        float normalized_gas = (float) gas_comp;
 
-        uint32_t normalized_temp = temp_comp / 100;
-        uint32_t normalized_pres = pres / 1000;
+        valores_temp[i] = normalized_temp;
+        valores_pres[i] = normalized_pres;
+        valores_hum[i] = normalized_hum;
+        valores_gas[i] = normalized_gas;
+
+        float data[4]; 
+        data[0] = normalized_temp;
+        data[1] = normalized_pres;
+        data[2] = normalized_hum;
+        data[3] = normalized_gas;        
+        uart_write_bytes(UART_NUM, (const char*)data, sizeof(float) * 4);
+
         sumatoria_temp += normalized_temp * normalized_temp;
         sumatoria_pres += normalized_pres * normalized_pres;
-        sumatoria_hum += hum_comp * hum_comp;
-        sumatoria_gas += gas_comp * gas_comp;
+        sumatoria_hum += normalized_hum * normalized_hum;
+        sumatoria_gas += normalized_gas * normalized_gas;
+
+        vTaskDelay(pdMS_TO_TICKS(200));
     }
 
+    float data[4];
+    data[0] = sqrt(sumatoria_temp / sample_size);
+    data[1] = sqrt(sumatoria_pres / sample_size);
+    data[2] = sqrt(sumatoria_hum / sample_size);
+    data[3] = sqrt(sumatoria_gas / sample_size);
+
+    // Envio de RMS de las 4 variables de medicion
+    uart_write_bytes(UART_NUM, (const char*)data, sizeof(float) * 4);
+
+    obtener5Peaks(valores_temp, peaks5_temp, sample_size);
+    obtener5Peaks(valores_pres, peaks5_pres, sample_size);
+    obtener5Peaks(valores_hum, peaks5_hum, sample_size);
+    obtener5Peaks(valores_gas, peaks5_gas, sample_size);
+
     calcularFFT(valores_temp, sample_size, resultado_fft_real_temp, resultado_fft_imag_temp);
-    calcularFFT(valores_pres, sample_size, resultado_fft_real_pres, resultado_fft_imag_pres[1]);
+    calcularFFT(valores_pres, sample_size, resultado_fft_real_pres, resultado_fft_imag_pres);
     calcularFFT(valores_hum, sample_size, resultado_fft_real_hum, resultado_fft_imag_hum);
     calcularFFT(valores_gas, sample_size, resultado_fft_real_gas, resultado_fft_imag_gas);
 
-    double data[4];
-    data[0] = sqrt((double)sumatoria_temp / sample_size);
-    data[1] = sqrt((double)sumatoria_pres / sample_size);
-    data[2] = sqrt((double)sumatoria_hum / sample_size);
-    data[3] = sqrt((double)sumatoria_hum / sample_size);
-    uart_write_bytes(UART_NUM, (const char*)data, sizeof(double) * 4);
-}
+    // Envio de peaks de las 4 variables de medicion
+    uart_write_bytes(UART_NUM, (const char*)peaks5_temp, sizeof(float) * 5);
+    uart_write_bytes(UART_NUM, (const char*)peaks5_pres, sizeof(float) * 5);
+    uart_write_bytes(UART_NUM, (const char*)peaks5_hum, sizeof(float) * 5);
+    uart_write_bytes(UART_NUM, (const char*)peaks5_gas, sizeof(float) * 5);
 
+    // Envio de numeros reales de las variables de medicion para la fft
+    uart_write_bytes(UART_NUM, (const char*)resultado_fft_real_temp, sizeof(float) * sample_size);
+    uart_write_bytes(UART_NUM, (const char*)resultado_fft_real_pres, sizeof(float) * sample_size);
+    uart_write_bytes(UART_NUM, (const char*)resultado_fft_real_hum, sizeof(float) * sample_size);
+    uart_write_bytes(UART_NUM, (const char*)resultado_fft_real_gas, sizeof(float) * sample_size);
+
+    // Envio de numeros imaginarios de las variables de medicion para la fft
+    uart_write_bytes(UART_NUM, (const char*)resultado_fft_imag_temp, sizeof(float) * sample_size);
+    uart_write_bytes(UART_NUM, (const char*)resultado_fft_imag_pres, sizeof(float) * sample_size);
+    uart_write_bytes(UART_NUM, (const char*)resultado_fft_imag_hum, sizeof(float) * sample_size);
+    uart_write_bytes(UART_NUM, (const char*)resultado_fft_imag_gas, sizeof(float) * sample_size);
+
+    free(valores_temp);
+    free(valores_pres);
+    free(valores_hum);
+    free(valores_gas);
+
+    free(resultado_fft_real_temp);
+    free(resultado_fft_real_pres);
+    free(resultado_fft_real_hum);
+    free(resultado_fft_real_gas);
+
+    free(resultado_fft_imag_temp);
+    free(resultado_fft_imag_pres);
+    free(resultado_fft_imag_hum);
+    free(resultado_fft_imag_gas);
+}
 
 void wait_for_plus(void) {
     char handshake = '\0';
@@ -683,7 +768,6 @@ int seek_star(void) {
                 return 1;
             } else {
                 return 0;
-                
             }
         }
     }
@@ -784,10 +868,9 @@ int load_window_size(int default_size) {
 #define GET_SAMPLE_SIZE 's'
 #define QUIT 'q'
 
-
 void app_main(void) {
     uart_setup(); // Uart setup
-    handshake(); // sincronizar con python
+    handshake();  // sincronizar con python
 
     ESP_ERROR_CHECK(sensor_init());
     bme_get_chipid();
@@ -798,21 +881,25 @@ void app_main(void) {
     init_nvs();
     uint32_t sample_size = load_window_size(50);
 
+    printf("tamano float: %i\r\n", sizeof(float));
+    printf("tamano double: %i\r\n", sizeof(double));
+
     while (1) {
         char command;
 
         // esto no quema el bme, la funcion serial read tiene un timeout
-        while (serial_read((char*)&command, 1) == 0) continue;
+        while (serial_read((char*)&command, 1) == 0)
+            continue;
 
         if (command == GET_DATA) {
             bme_read_data(sample_size);
 
         } else if (command == CHANGE_SAMPLE_SIZE) {
-            // revisar bien esto porque el tamaño del tipo int puede no set igual en el idf que en el pc
             uint32_t new_sample_size;
-            serial_read((char*)&new_sample_size, sizeof(new_sample_size)); 
+            serial_read((char*)&new_sample_size, sizeof(new_sample_size));
 
-            if (save_window_size(new_sample_size)) sample_size = new_sample_size;
+            if (save_window_size(new_sample_size))
+                sample_size = new_sample_size;
 
         } else if (command == GET_SAMPLE_SIZE) {
             uart_write_bytes(UART_NUM, (char*)&sample_size, sizeof(uint32_t));

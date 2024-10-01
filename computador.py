@@ -4,6 +4,7 @@ import sys
 import serial
 from struct import pack, unpack
 import matplotlib.pyplot as plt
+import array
 
 
 # Se configura el puerto y el BAUD_Rate
@@ -25,17 +26,17 @@ print(resultado)
 
 # imprimir a la terminal logs de inicio
 print("\n-- output inicial --")
-print(ser.readall(), end="")
+print(ser.readall().decode())
 
 # se lee el tamanho de la ventana de datos
 def solicitar_tamano_ventana():
-    print("\n-- leer tamanho del sample --")
+    print("\n-- leer tamaño del sample --")
     _ = ser.write('s'.encode())
     raw_sample_size = ser.read(4)
 
     if len(raw_sample_size) == 4:
         new_sample_size = unpack('I', raw_sample_size)[0]
-        print(f"el tamanho previo de la muestra es {new_sample_size}")
+        print(f"el tamaño previo de la muestra es {new_sample_size}")
         return new_sample_size
     else:
         print(f"se leyeron {len(raw_sample_size)} bytes")
@@ -44,25 +45,44 @@ def solicitar_tamano_ventana():
 samples = solicitar_tamano_ventana()
 
 
-def generar_graficos(tiempo, lista_temp, esp_rms_temp, lista_pres, esp_rms_pres):
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5))
+def generar_graficos(tiempo, 
+                     lista_temp, esp_rms_temp, 
+                     lista_pres, esp_rms_pres,
+                     lista_hum, esp_rms_hum,
+                     lista_gas, esp_rms_gas):
+    
+    fig, axes = plt.subplots(2, 2, figsize=(10, 5))
+    (ax1, ax2), (ax3, ax4) = axes
+
     ax1.plot(tiempo, lista_temp, marker='o', linestyle='-', color='b',  label=f'Temperatura (°C) RMS={esp_rms_temp}')
     ax1.set_title('Variación de la Temperatura en el Tiempo')
     ax1.set_xlabel('Tiempo (segundos)')
     ax1.set_ylabel('Temperatura (°C)')
 
     ax2.plot(tiempo, lista_pres, marker='o', linestyle='-', color='b',  label=f'Pascal (kPa) RMS={esp_rms_pres}')
-    ax2.set_title('Variación de la presión en el tiempo')
+    ax2.set_title('Variación de la Presión en el Tiempo')
     ax2.set_xlabel('Tiempo (segundos)')
-    ax2.set_ylabel('Kilo Pascal (kPa)')
+    ax2.set_ylabel('Presión (kPa)')
+
+    ax3.plot(tiempo, lista_hum, marker='o', linestyle='-', color='b',  label=f'Porcentaje (%) RMS={esp_rms_hum}%')
+    ax3.set_title('Variación de la Humedad atmosferica en el Tiempo')
+    ax3.set_xlabel('Tiempo (segundos)')
+    ax3.set_ylabel('Humedad (%)')
+    
+    ax4.plot(tiempo, lista_gas, marker='o', linestyle='-', color='b',  label=f'Ohms (Ω) RMS={esp_rms_gas}')
+    ax4.set_title('Variación de la Resistencia en el Tiempo')
+    ax4.set_xlabel('Tiempo (segundos)')
+    ax4.set_ylabel('Resistencia (Ω)')
+
     plt.tight_layout()
     plt.show()
+
 
 def solicitar_ventana_datos(progress_dialog):
     """Función para solicitar la ventana de datos"""
     global samples
 
-    print("\n-- estraccion de datos --")
+    print("\n-- extraccion de datos --")
 
     _ = ser.write('s'.encode())
     data = ser.read(4)
@@ -70,34 +90,92 @@ def solicitar_ventana_datos(progress_dialog):
     _ = ser.write('g'.encode())
     lista_temp = []
     lista_pres = []
+    lista_hum=[]
+    lista_gas=[]
     tiempo = list(range(samples))
 
     # Actualizar la barra de progreso
     for i in range(samples):
-        data = ser.read(8)
-        temp, pres = unpack("II", data)
-        lista_temp.append(temp/100)
-        lista_pres.append(pres/1000)
-        print(f"temp: {temp / 100}\tpres: {pres}")
+        data = ser.read(16)
+        temp, pres, hum, gas = unpack("ffff", data)
+        lista_temp.append(temp)
+        lista_pres.append(pres)
+        lista_hum.append(hum)
+        lista_gas.append(gas)   
+        print(f"temp: {temp:.5f}\tpres: {pres:.5f}" +
+              f"\thum:{hum:.5f}%\tgas:{gas:.5f}")
+        
 
         progress_dialog.setValue(i+1)
         if progress_dialog.wasCanceled():
-            print(ser.readall(), end="")
+            print("esperando a que termine la muestra")
+            _ = ser.readall()
             return
-            
 
     data = ser.read(16)
-    esp_rms_temp, esp_rms_pres = unpack("dd", data)
+    esp_rms_temp, esp_rms_pres,esp_rms_hum,esp_rms_gas = unpack("ffff", data)
 
     print(f"\n-- resultados RMS esp --")
     print(f"temp: {esp_rms_temp}")
     print(f"pres: {esp_rms_pres}")
+    print(f"hum: {esp_rms_hum} %")
+    print(f"gas: {esp_rms_gas} ohm")
+
+    data5peaks_temp = ser.read(20)
+    data5peaks_pres = ser.read(20)
+    data5peaks_hum = ser.read(20)
+    data5peaks_gas = ser.read(20)
     
+    peaks_temp = array.array('f', data5peaks_temp).tolist()
+    peaks_pres = array.array('f', data5peaks_pres).tolist()
+    peaks_hum = array.array('f', data5peaks_hum).tolist()
+    peaks_gas = array.array('f', data5peaks_gas).tolist()
+    
+    print(f"\n-- resultados 5peaks esp --")
+    print(f"temp: {peaks_temp}")
+    print(f"pres: {peaks_pres}")
+    print(f"hum: {peaks_hum}")
+    print(f"gas: {peaks_gas}")
+
+    data_fft_real_temp = ser.read(4*samples)
+    data_fft_real_pres = ser.read(4*samples)
+    data_fft_real_hum = ser.read(4*samples)
+    data_fft_real_gas = ser.read(4*samples)
+    fft_real_temp = array.array('f', data_fft_real_temp).tolist()
+    fft_real_pres = array.array('f', data_fft_real_pres).tolist()
+    fft_real_hum = array.array('f', data_fft_real_hum).tolist()
+    fft_real_gas = array.array('f', data_fft_real_gas).tolist()
+
+    print(f"\n-- resultados fft esp --")
+    print(f"temp: {fft_real_temp}")
+    print(f"pres: {fft_real_pres}")
+    print(f"hum: {fft_real_hum}")
+    print(f"gas: {fft_real_gas}")
+
+    data_fft_imag_temp = ser.read(4*samples)
+    data_fft_imag_pres = ser.read(4*samples)
+    data_fft_imag_hum = ser.read(4*samples)
+    data_fft_imag_gas = ser.read(4*samples)
+    fft_imag_temp = array.array('f', data_fft_imag_temp).tolist()
+    fft_imag_pres = array.array('f', data_fft_imag_pres).tolist()
+    fft_imag_hum = array.array('f', data_fft_imag_hum).tolist()
+    fft_imag_gas = array.array('f', data_fft_imag_gas).tolist()
+    
+    print(f"\n-- resultados fft imag esp --")
+    print(f"temp: {fft_imag_temp}")
+    print(f"pres: {fft_imag_pres}")
+    print(f"hum: {fft_imag_hum}")
+    print(f"gas: {fft_imag_gas}")
+
     progress_dialog.close()
-     
-    generar_graficos(tiempo, lista_temp, esp_rms_temp, lista_pres, esp_rms_pres)
 
+    print(ser.readall(), end="")
 
+    generar_graficos(tiempo, 
+                     lista_temp, esp_rms_temp, 
+                     lista_pres, esp_rms_pres,
+                     lista_hum, esp_rms_hum,
+                     lista_gas, esp_rms_gas)
 
 def cambiar_tamanho_ventana(tamanho: int) -> bool:
     """Función para cambiar el tamanho de la ventana de datos"""
