@@ -5,6 +5,7 @@ import serial
 from struct import pack, unpack
 import matplotlib.pyplot as plt
 import array
+import time
 
 
 # Se configura el puerto y el BAUD_Rate
@@ -94,6 +95,8 @@ def solicitar_ventana_datos(progress_dialog):
     lista_gas=[]
     tiempo = list(range(samples))
 
+    time.sleep(1)
+
     # Actualizar la barra de progreso
     for i in range(samples):
         data = ser.read(16)
@@ -131,35 +134,37 @@ def solicitar_ventana_datos(progress_dialog):
     peaks_hum = array.array('f', data5peaks_hum).tolist()
     peaks_gas = array.array('f', data5peaks_gas).tolist()
     
-    print(f"\n-- resultados 5peaks esp --")
+    print(f"\n-- resultados 5 peaks esp --")
     print(f"temp: {peaks_temp}")
     print(f"pres: {peaks_pres}")
     print(f"hum: {peaks_hum}")
     print(f"gas: {peaks_gas}")
 
-    data_fft_real_temp = ser.read(4*samples)
-    data_fft_real_pres = ser.read(4*samples)
-    data_fft_real_hum = ser.read(4*samples)
-    data_fft_real_gas = ser.read(4*samples)
+    data_fft_real_temp = ser.read(4 * samples)
+    data_fft_imag_temp = ser.read(4 * samples)
     fft_real_temp = array.array('f', data_fft_real_temp).tolist()
+    fft_imag_temp = array.array('f', data_fft_imag_temp).tolist()
+
+    data_fft_real_pres = ser.read(4 * samples)
+    data_fft_imag_pres = ser.read(4 * samples)
     fft_real_pres = array.array('f', data_fft_real_pres).tolist()
+    fft_imag_pres = array.array('f', data_fft_imag_pres).tolist()
+
+    data_fft_real_hum = ser.read(4 * samples)
+    data_fft_imag_hum = ser.read(4 * samples)
     fft_real_hum = array.array('f', data_fft_real_hum).tolist()
+    fft_imag_hum = array.array('f', data_fft_imag_hum).tolist()
+
+    data_fft_real_gas = ser.read(4 * samples)
+    data_fft_imag_gas = ser.read(4 * samples)
     fft_real_gas = array.array('f', data_fft_real_gas).tolist()
+    fft_imag_gas = array.array('f', data_fft_imag_gas).tolist()
 
     print(f"\n-- resultados fft esp --")
     print(f"temp: {fft_real_temp}")
     print(f"pres: {fft_real_pres}")
     print(f"hum: {fft_real_hum}")
     print(f"gas: {fft_real_gas}")
-
-    data_fft_imag_temp = ser.read(4*samples)
-    data_fft_imag_pres = ser.read(4*samples)
-    data_fft_imag_hum = ser.read(4*samples)
-    data_fft_imag_gas = ser.read(4*samples)
-    fft_imag_temp = array.array('f', data_fft_imag_temp).tolist()
-    fft_imag_pres = array.array('f', data_fft_imag_pres).tolist()
-    fft_imag_hum = array.array('f', data_fft_imag_hum).tolist()
-    fft_imag_gas = array.array('f', data_fft_imag_gas).tolist()
     
     print(f"\n-- resultados fft imag esp --")
     print(f"temp: {fft_imag_temp}")
