@@ -95,7 +95,7 @@ def solicitar_ventana_datos(progress_dialog):
     lista_gas=[]
     tiempo = list(range(samples))
 
-    time.sleep(1)
+    time.sleep(1.5)
 
     # Actualizar la barra de progreso
     for i in range(samples):

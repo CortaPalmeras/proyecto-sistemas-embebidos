@@ -386,7 +386,7 @@ void calcularFFT(float* array, int size, float* array_re, float* array_im) {
 }
 
 // realiza el calculo de la temperatura y setea t_fine
-int32_t bme_temp_celsius(const int32_t temp_adc, int32_t* t_fine_ptr) {
+int16_t bme_temp_celsius(const uint32_t temp_adc, int32_t* t_fine_ptr) {
     // Datasheet[23]
     // https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme688-ds000.pdf#page=23
 
@@ -413,7 +413,7 @@ int32_t bme_temp_celsius(const int32_t temp_adc, int32_t* t_fine_ptr) {
     int64_t var1;
     int64_t var2;
     int64_t var3;
-    int32_t temp_comp;
+    int16_t temp_comp;
     int32_t t_fine;
 
     var1 = ((int32_t)temp_adc >> 3) - ((int32_t)par_t1 << 1);
@@ -430,20 +430,18 @@ int32_t bme_temp_celsius(const int32_t temp_adc, int32_t* t_fine_ptr) {
 // prepara las variables para el calculo de la temperatura
 int32_t bme_read_temp(int32_t* t_fine_ptr) {
     // https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme688-ds000.pdf#page=23
-    uint8_t tmp;
-
-    // Se obtienen los datos de temperatura
+    // https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme688-ds000.pdf#page=41
     uint8_t forced_temp_addr[] = {0x22, 0x23, 0x24};
 
+    uint8_t tmp;
     int32_t temp_adc = 0;
 
-    // https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme688-ds000.pdf#page=41
     bme_i2c_read(I2C_NUM_0, &forced_temp_addr[0], &tmp, 1);
-    temp_adc = temp_adc | tmp << 12;
+    temp_adc = temp_adc | ((int32_t)tmp << 12);
     bme_i2c_read(I2C_NUM_0, &forced_temp_addr[1], &tmp, 1);
-    temp_adc = temp_adc | tmp << 4;
+    temp_adc = temp_adc | ((int32_t)tmp << 4);
     bme_i2c_read(I2C_NUM_0, &forced_temp_addr[2], &tmp, 1);
-    temp_adc = temp_adc | (tmp & 0xf0) >> 4;
+    temp_adc = temp_adc | ((int32_t)tmp >> 4);
 
     return bme_temp_celsius(temp_adc, t_fine_ptr);
 }
@@ -503,10 +501,10 @@ uint32_t bme_pres_pascal(const uint32_t press_raw, const int32_t t_fine) {
     par_p9 = (par[14] << 8) | par[13];
     par_p10 = par[15];
 
-    int64_t var1;
-    int64_t var2;
-    int64_t var3;
-    uint32_t press_comp;
+    int32_t var1;
+    int32_t var2;
+    int32_t var3;
+    int32_t press_comp;
 
     var1 = ((int32_t)t_fine >> 1) - 64000;
     var2 = ((((var1 >> 2) * (var1 >> 2)) >> 11) * (int32_t)par_p6) >> 2;
@@ -529,7 +527,7 @@ uint32_t bme_pres_pascal(const uint32_t press_raw, const int32_t t_fine) {
            17;
     press_comp = (int32_t)(press_comp) + ((var1 + var2 + var3 + ((int32_t)par_p7 << 7)) >> 4);
 
-    return press_comp;
+    return (uint32_t)press_comp;
 }
 
 // calcula e imprime el la presion
@@ -544,9 +542,9 @@ uint32_t bme_read_pres(const int32_t t_fine) {
     bme_i2c_read(I2C_NUM_0, forced_pres_addr, &tmp, 1);
     pres_adc = tmp << 12;
     bme_i2c_read(I2C_NUM_0, forced_pres_addr + 1, &tmp, 1);
-    pres_adc = pres_adc | (tmp << 4);
+    pres_adc = pres_adc | ((int32_t)tmp << 4);
     bme_i2c_read(I2C_NUM_0, forced_pres_addr + 2, &tmp, 1);
-    pres_adc = pres_adc | (tmp >> 4);
+    pres_adc = pres_adc | ((int32_t)tmp >> 4);
 
     return bme_pres_pascal(pres_adc, t_fine);
 }
@@ -579,14 +577,14 @@ uint32_t bme_hum_percent(const uint32_t hum_adc, const int32_t temp_comp) {
     uint16_t par_h6 = par[6];
     uint16_t par_h7 = par[7];
 
-    int64_t var1;
-    int64_t var2;
-    int64_t var3;
-    int64_t var4;
-    int64_t var5;
-    int64_t var6;
-    uint32_t temp_scaled;
-    uint32_t hum_comp;
+    int32_t var1;
+    int32_t var2;
+    int32_t var3;
+    int32_t var4;
+    int32_t var5;
+    int32_t var6;
+    int32_t temp_scaled;
+    int32_t hum_comp;
 
     temp_scaled = (int32_t)temp_comp;
     var1 = (int32_t)hum_adc - (int32_t)((int32_t)par_h1 << 4) - (
@@ -604,7 +602,7 @@ uint32_t bme_hum_percent(const uint32_t hum_adc, const int32_t temp_comp) {
     hum_comp = (var3 + var6) >> 12;
     hum_comp = (((var3 + var6) >> 10) * ((int32_t)1000)) >> 12;
 
-    return hum_comp;
+    return (uint32_t)hum_comp;
 }
 
 uint32_t bme_read_hum(const int32_t temp_comp) {
@@ -616,7 +614,7 @@ uint32_t bme_read_hum(const int32_t temp_comp) {
 
     // https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme688-ds000.pdf#page=41
     bme_i2c_read(I2C_NUM_0, &forced_hum_addr[0], &tmp, 1);
-    hum_adc = tmp << 8;
+    hum_adc = (int32_t)tmp << 8;
     bme_i2c_read(I2C_NUM_0, &forced_hum_addr[1], &tmp, 1);
     hum_adc = hum_adc | tmp;
 
@@ -646,9 +644,9 @@ uint32_t bme_read_gas(void) {
 
     // https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme688-ds000.pdf#page=41
     bme_i2c_read(I2C_NUM_0, forced_gas_addr, &tmp, 1);
-    gas_adc = tmp << 4;
+    gas_adc = tmp << 2;
     bme_i2c_read(I2C_NUM_0, forced_gas_addr + 1, &tmp, 1);
-    gas_adc = (gas_adc | tmp) >> 4;
+    gas_adc = gas_adc | (tmp >> 6);
     gas_range = tmp & 0xf;
 
     return bme_gas_ohm(gas_adc, gas_range);
