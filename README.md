@@ -1,5 +1,5 @@
 # Iteración 1 del proyecto 1
-## CC5328 - Sistemas Embedidos y Sensores
+## CC5328 - Sistemas Embebidos y Sensores
 
 Esta tarea fue probada en Debain 12, por lo que el puerto usado fue `/dev/ttyUSB0`, para cambiarlo, se debe modificar la variable `PORT` en el archivo `computador.py`.
 
